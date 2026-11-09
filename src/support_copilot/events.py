@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger("support_copilot")
 
 
-def emit(event: str, **fields: str | int) -> None:
+def emit(event: str, **fields: str | int | float) -> None:
     logger.info(json.dumps({"event": event, **fields}, sort_keys=True))
 
 

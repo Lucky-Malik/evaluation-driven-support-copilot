@@ -1,0 +1,13 @@
+{
+  "pipeline_version": "vector-baseline-v1",
+  "snapshot_id": "fastapi-d4f83a093dd1b2ab",
+  "embedding_model": "text-embedding-3-small",
+  "embedding_dimensions": 1536,
+  "generation_model": "gpt-5.6-terra",
+  "reasoning_effort": "low",
+  "top_k": 5,
+  "max_output_tokens": 4096,
+  "timeout_seconds": 45,
+  "embedding_batch_size": 16,
+  "prompt_file": "answer-v1.txt"
+}

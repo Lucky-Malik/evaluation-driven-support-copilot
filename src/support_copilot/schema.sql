@@ -1,4 +1,4 @@
-CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
 
 CREATE TABLE IF NOT EXISTS schema_version (
     version integer PRIMARY KEY CHECK (version = 1)

@@ -1,5 +1,7 @@
 # Phase 1 — Foundation and document ingestion
 
+This is the historical Phase 1 implementation record. [Phase 2](../phase-2/README.md) now upgrades the schema to version 2 and preserves unchanged chunk rows during re-ingestion so their embeddings survive. Use the root README for current setup; the Phase 1 measurements below remain historical results.
+
 ## 1. What we built and why
 
 We built a local FastAPI application, a PostgreSQL service with pgvector installed, an explicit schema initialization command, and a reproducible documentation ingestion pipeline. No external credentials or paid model calls are needed.

@@ -32,8 +32,19 @@ def connect(url: str) -> psycopg.Connection:
 def initialize(url: str) -> None:
     schema = files("support_copilot").joinpath("schema.sql").read_text()
     with connect(url) as connection:
-        connection.execute(schema)
-    emit("schema_initialized", version=1)
+        connection.execute("SELECT pg_advisory_xact_lock(710000)")
+        exists = connection.execute("SELECT to_regclass('schema_version')").fetchone()[0]
+        if exists is None:
+            connection.execute(schema)
+        version = connection.execute("SELECT version FROM schema_version").fetchall()
+        if version == [(1,)]:
+            migration = (
+                files("support_copilot").joinpath("migrations/002_embeddings.sql").read_text()
+            )
+            connection.execute(migration)
+        elif version != [(2,)]:
+            raise ValueError("Unsupported database schema version")
+    emit("schema_initialized", version=2)
 
 
 def check_ready(url: str) -> None:
@@ -44,7 +55,8 @@ def check_ready(url: str) -> None:
         ).fetchone()
         connection.execute("SELECT id, snapshot_id, pipeline_version FROM documents LIMIT 0")
         connection.execute("SELECT id, document_id, content_sha256 FROM chunks LIMIT 0")
-        if version != (1,) or extension != (1,):
+        connection.execute("SELECT chunk_id, model, dimensions FROM chunk_embeddings LIMIT 0")
+        if version != (2,) or extension != (1,):
             raise ValueError("Database schema or vector extension is not initialized")
 
 
@@ -88,12 +100,19 @@ def ingest(url: str, folder: Path) -> dict[str, str | int]:
                     content,
                 ),
             )
-            connection.execute("DELETE FROM chunks WHERE document_id = %s", (document_id,))
+            connection.execute(
+                "DELETE FROM chunks WHERE document_id = %s AND NOT (id = ANY(%s))",
+                (document_id, [chunk.id for chunk in chunks]),
+            )
             with connection.cursor() as cursor:
                 cursor.executemany(
                     """INSERT INTO chunks
                        (id, document_id, ordinal, section, anchor, content, content_sha256)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                       VALUES (%s, %s, %s, %s, %s, %s, %s)
+                       ON CONFLICT (id) DO UPDATE SET
+                       ordinal = EXCLUDED.ordinal, section = EXCLUDED.section,
+                       anchor = EXCLUDED.anchor, content = EXCLUDED.content,
+                       content_sha256 = EXCLUDED.content_sha256""",
                     [
                         (
                             chunk.id,
