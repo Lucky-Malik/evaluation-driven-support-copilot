@@ -1,0 +1,48 @@
+{
+  "format_version": 1,
+  "snapshot_id": "fastapi-d4f83a093dd1b2ab",
+  "snapshot_hash": "d4f83a093dd1b2ab86e0bda39fd378393e2c1de4935c6bc59ca5f4f03b603ab4",
+  "captured_at": "2026-11-09T11:52:59.135436Z",
+  "upstream_version": "unversioned official website; captured bytes are pinned",
+  "attribution": "FastAPI documentation, copyright Sebastián Ramírez; MIT license",
+  "license_url": "https://raw.githubusercontent.com/fastapi/fastapi/master/LICENSE",
+  "license_sha256": "4ec89ffc81485b97fec584b2d4a961032eeffe834453894fd9c1274906cc744e",
+  "pages": [
+    {
+      "source_url": "https://fastapi.tiangolo.com/tutorial/path-params/",
+      "title": "Path Parameters",
+      "file": "page-0.html",
+      "raw_sha256": "d97fad542f5020b7065783a039592dc03c4daba2664bc46e3067b89b41690dd6"
+    },
+    {
+      "source_url": "https://fastapi.tiangolo.com/tutorial/query-params/",
+      "title": "Query Parameters",
+      "file": "page-1.html",
+      "raw_sha256": "21f38c8beaec235fd372348b7664e6aff97afe74885a5b1c8c5e22d742d762dd"
+    },
+    {
+      "source_url": "https://fastapi.tiangolo.com/tutorial/body/",
+      "title": "Request Body",
+      "file": "page-2.html",
+      "raw_sha256": "f94260b9aef16f212566655144738b516e4c5b5bcabf9b12e7160ff6cfe391e5"
+    },
+    {
+      "source_url": "https://fastapi.tiangolo.com/tutorial/dependencies/",
+      "title": "Dependencies",
+      "file": "page-3.html",
+      "raw_sha256": "39be412b2a8d50578281b92c9d7416f8b8bb905c921fce7d5d626b100b3fb3de"
+    },
+    {
+      "source_url": "https://fastapi.tiangolo.com/tutorial/handling-errors/",
+      "title": "Handling Errors",
+      "file": "page-4.html",
+      "raw_sha256": "fee27843966d66874d342044d9be44900d745ef4ea10aa606cf2b03d474685f8"
+    },
+    {
+      "source_url": "https://fastapi.tiangolo.com/tutorial/security/first-steps/",
+      "title": "Security - First Steps",
+      "file": "page-5.html",
+      "raw_sha256": "6472d96851ab0cfb460df5d7ae301df17e81a31db4120e36cc058d2d61d45cc4"
+    }
+  ]
+}
