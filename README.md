@@ -1,8 +1,8 @@
 # Evaluation-Driven Technical Support Copilot
 
-A portfolio project for answering FastAPI support questions from documented evidence. The planned centerpiece is an evaluation workflow that compares pipeline versions and exposes failures, quality, latency, and estimated cost.
+A portfolio project for answering FastAPI support questions from documented evidence. Its evaluation workflow compares pipeline runs and exposes failures, quality, latency, and provider-reported usage. Dollar cost is reported as unavailable until verified pricing is configured.
 
-**Current status: Phase 2 implemented; offline and PostgreSQL checks passed.** The vector-only baseline includes embeddings, retrieval, structured answers, citations, and request traces. Live provider checks are pending because no OpenAI API key is configured. There are no evaluation scores or dashboard yet.
+**Current status: Phase 3 implemented; live evaluation pending.** The vector-only baseline now has a 30-case dataset, deterministic metrics, a structured LLM judge, saved run comparison, and a user review workflow. Cases are agent-inspected, with zero user-reviewed labels. No OpenAI API key is configured, so no live benchmark or judge agreement rate is claimed.
 
 ## Current architecture
 
@@ -21,6 +21,13 @@ PostgreSQL: documents ──< chunks
 POST /ask → question embedding → retrieved passages → OpenAI structured answer
                                                      │
                                     citation ID checks → answer + sources + trace
+
+Versioned cases → eval run → same baseline + separate LLM judge
+                              │
+                              ▼
+                  JSONL case records + metric summaries
+                              │
+                     compare runs / review judgments
 ```
 
 PostgreSQL runs in Docker Compose. Python runs locally with uv. `/health` checks the API process; `/ready` checks database/schema availability. `copilot index-status` separately checks embedding coverage. The baseline uses exact cosine search, with no keyword search, hybrid retrieval, or reranking.
@@ -78,16 +85,36 @@ Optional: capture a new six-page snapshot with `uv run copilot fetch-docs`. It p
 
 1. **Complete:** [Foundation and document ingestion](docs/phase-1/README.md).
 2. **Implemented, live checks pending:** [Baseline RAG with citations](docs/phase-2/README.md).
-3. Planned: evaluation harness, reviewed datasets, and failure analysis.
+3. **Implemented, live benchmark pending:** [Evaluation harness and failure analysis](docs/phase-3/README.md).
 4. Planned: keyword/hybrid retrieval and guardrail experiments.
 5. Planned: dashboard, regression checks, and portfolio delivery.
 
 Only implemented phases have guides. The provider is OpenAI using its official SDK. Defaults are `text-embedding-3-small` (1,536 dimensions) and `gpt-5.6-terra`, verified against official documentation on 9 November 2026. Models and top-k can be overridden in `.env`; the packaged `baseline-v1.json` and `answer-v1.txt` preserve the baseline defaults and prompt. See Phase 2 for citations and configuration details.
 
+## Evaluate and inspect
+
+The included dataset has 20 development and 10 held-out cases covering ordinary questions, exact identifiers, ambiguity, and missing evidence. Validate it without a key or database:
+
+```bash
+uv run copilot eval validate
+```
+
+After configuring a key and embedding the corpus, run paid evaluation and prepare a review packet:
+
+```bash
+uv run copilot eval run --split dev --limit 2 --output runs/dev-smoke
+uv run copilot eval run --split dev --output runs/baseline-dev
+uv run copilot eval review-sample --run runs/baseline-dev --output runs/review.json
+```
+
+Use a fresh output directory for each run. Artifacts retain dataset/corpus/config/prompt/model identities, evidence, answers, errors, timings, tokens, and scores. Metrics include chunk Recall@K, MRR, outcome accuracy, citation validity, and judge-assessed correctness, faithfulness, citation support, and response appropriateness. Judge failures and usage remain separate from application quality and usage.
+
+The [Phase 3 guide](docs/phase-3/README.md) explains formulas, comparison commands, review recording, and missing-score coverage. The [dataset guide](data/evaluation/fastapi-support-v1/README.md) explains label provenance and expansion toward 100 reviewed cases. Use development cases for choosing settings and reserve the test split for evaluation after those choices.
+
 ## Evidence and limitations
 
-Verified on 9 November 2026: **54 tests passed; 3 paid smoke tests skipped**. Ruff checks passed. The actual database is migrated with **81 chunks and zero embeddings**; no paid calls were made. Local HTTP checks verified health/readiness and the missing-key error. Provider-dependent tests use the real SDK with scripted HTTP responses; they do not establish semantic retrieval or answer quality. The existing Starlette TestClient deprecation warning remains documented.
+Verified on 10 November 2026: **94 tests passed; 3 paid live tests skipped**. Ruff and package-build checks passed. The [offline validation report](docs/phase-3/offline-validation.json) verifies 30 cases and 21 evidence references against 81 saved chunks, with zero model calls. The actual database has 81 chunks and zero embeddings. Provider-dependent tests use the real SDK with scripted HTTP responses; they do not establish semantic retrieval or answer quality. The existing Starlette TestClient deprecation warning remains documented.
 
-This is a local public-document prototype, not a deployed support service. The corpus is a six-page website snapshot, not a named FastAPI release or complete documentation set. Chunk sizes are a soft character target, not a token limit. Citation membership is checked; whether a passage actually supports a claim is not yet scored. Distance is not confidence. Estimated cost is explicitly unavailable because no verified pricing configuration is enabled. No claim about live LLM quality is possible yet.
+This is a local public-document prototype. The corpus is a six-page website snapshot, not a named FastAPI release or complete documentation set. Chunk sizes are a soft character target, not a token limit. Citation membership is checked deterministically; semantic support is assessed by a fallible judge. Distance is not confidence. Labels may miss alternative supporting chunks; the small held-out split is visible to the author. No claim about live LLM quality is possible yet, and the dashboard remains a later phase.
 
 Source URLs and hashes are in the [snapshot manifest](data/snapshots/fastapi-d4f83a093dd1b2ab/manifest.json). FastAPI documentation is attributed to Sebastián Ramírez and distributed with its downloaded [MIT license](data/snapshots/fastapi-d4f83a093dd1b2ab/LICENSE). The saved source remains separate from the project's implementation.

@@ -1,8 +1,11 @@
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
 from support_copilot.app import app
 from support_copilot.contracts import Answer
+from support_copilot.errors import CopilotError
+from support_copilot.rag import answer_question
 from support_copilot.settings import config_hash
 
 
@@ -84,6 +87,39 @@ def test_unknown_citation_rejected(ask_client):
     assert response.status_code == 502
     assert response.json()["error"]["code"] == "invalid_citation"
     assert len(response.json()["trace"]["provider_calls"]) == 2
+
+
+def test_failed_citation_keeps_draft_and_retrieval_for_evaluation(
+    ask_client,
+    provider_client,
+    baseline_settings,
+    passage,
+):
+    _, state = ask_client
+    sdk, _ = provider_client
+    state["citation_id"] = "invented-id"
+    with pytest.raises(CopilotError) as caught:
+        answer_question("A question", baseline_settings, "test-url", sdk, "test-request")
+    assert caught.value.retrieved_passages[0]["chunk_id"] == passage.chunk_id
+    assert caught.value.retrieval_completed is True
+    assert caught.value.candidate_draft["citation_ids"] == ["invented-id"]
+    assert caught.value.trace["timings_ms"]["retrieval"] >= 0
+
+
+def test_failed_retrieval_keeps_timing_without_claiming_completion(
+    ask_client, provider_client, baseline_settings, monkeypatch
+):
+    def fail(*_):
+        raise psycopg.OperationalError("Synthetic connection failure")
+
+    monkeypatch.setattr("support_copilot.rag.retrieve", fail)
+    sdk, _ = provider_client
+    with pytest.raises(CopilotError) as caught:
+        answer_question("A question", baseline_settings, "test-url", sdk, "test-request")
+    assert caught.value.code == "database_unavailable"
+    assert caught.value.retrieval_completed is False
+    assert caught.value.retrieved_passages == []
+    assert caught.value.trace["timings_ms"]["retrieval"] >= 0
 
 
 def test_invalid_outcome_rejected(ask_client):

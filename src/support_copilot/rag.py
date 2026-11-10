@@ -23,6 +23,9 @@ def answer_question(
     started = perf_counter()
     stage_started = started
     stage = "corpus_check"
+    passages = []
+    retrieval_completed = False
+    draft = None
     prompt = load_prompt(settings)
     trace = Trace(
         request_id=request_id,
@@ -55,6 +58,7 @@ def answer_question(
         trace.timings_ms[stage] = round((perf_counter() - stage_started) * 1000, 3)
         stage, stage_started = "retrieval", perf_counter()
         passages = retrieve(url, embedding.vectors[0], settings)
+        retrieval_completed = True
         trace.timings_ms[stage] = round((perf_counter() - stage_started) * 1000, 3)
         stage, stage_started = "generation", perf_counter()
         if passages:
@@ -130,5 +134,8 @@ def answer_question(
         trace.timings_ms[stage] = round((perf_counter() - stage_started) * 1000, 3)
         trace.timings_ms["total"] = round((perf_counter() - started) * 1000, 3)
         failure.trace = trace.model_dump()
+        failure.retrieved_passages = [passage.model_dump() for passage in passages]
+        failure.retrieval_completed = retrieval_completed
+        failure.candidate_draft = draft.model_dump() if draft else None
         emit("answer_failed", request_id=request_id, stage=stage, error_code=failure.code)
         raise failure from None

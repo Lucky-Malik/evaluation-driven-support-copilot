@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "dataset_id": "fastapi-support-v1",
+  "snapshot_id": "fastapi-d4f83a093dd1b2ab",
+  "snapshot_hash": "d4f83a093dd1b2ab86e0bda39fd378393e2c1de4935c6bc59ca5f4f03b603ab4",
+  "pipeline_version": "html-sections-blocks-v1-1600",
+  "relevance_unit": "chunk",
+  "files": {
+    "dev.jsonl": "a924a401f270b69e7ef4e8ef668cf297ffb59b65eb84129c1910fa7a180e7dbe",
+    "test.jsonl": "a892d78365e8cb6d9f67a2d8d05a88a9ce575a9257aa306a4091d3f796c1244e"
+  }
+}

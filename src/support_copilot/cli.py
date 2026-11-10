@@ -6,9 +6,11 @@ from pathlib import Path
 import httpx
 import psycopg
 from openai import OpenAI, OpenAIError
+from pydantic import ValidationError
 
 from support_copilot.db import database_url, ingest, initialize
 from support_copilot.errors import CopilotError
+from support_copilot.evaluation.cli import add_evaluation_parser, evaluate_command
 from support_copilot.events import configure_logging, emit
 from support_copilot.provider import provider_error
 from support_copilot.retrieval import corpus_status, embed_corpus
@@ -22,6 +24,7 @@ def main() -> None:
     commands.add_parser("init-db")
     commands.add_parser("index-status")
     commands.add_parser("embed")
+    add_evaluation_parser(commands)
     fetch = commands.add_parser("fetch-docs")
     fetch.add_argument("--output", type=Path, default=Path("data/snapshots"))
     ingest_parser = commands.add_parser("ingest")
@@ -29,7 +32,9 @@ def main() -> None:
     args = parser.parse_args()
     configure_logging()
     try:
-        if args.command == "fetch-docs":
+        if args.command == "eval":
+            print(json.dumps(evaluate_command(args), sort_keys=True))
+        elif args.command == "fetch-docs":
             print(fetch_snapshot(args.output))
         elif args.command == "init-db":
             initialize(database_url())
@@ -62,6 +67,8 @@ def main() -> None:
             message = "Official documentation download failed; check network access and retry."
         elif isinstance(error, OSError):
             message = "File operation failed; check the snapshot path and file permissions."
+        elif args.command == "eval" and not isinstance(error, ValidationError):
+            message = str(error)
         else:
             message = "Input validation failed; check the snapshot, model configuration, and .env."
         print(message, file=sys.stderr)

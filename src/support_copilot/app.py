@@ -14,7 +14,7 @@ from support_copilot.rag import answer_question
 from support_copilot.settings import api_key, load_settings
 
 configure_logging()
-app = FastAPI(title="Evaluation-Driven Technical Support Copilot", version="0.2.0")
+app = FastAPI(title="Evaluation-Driven Technical Support Copilot", version="0.3.0")
 
 
 @app.get("/health")

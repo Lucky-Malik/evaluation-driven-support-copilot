@@ -64,7 +64,7 @@ class Usage(BaseModel):
 
 
 class ProviderCall(BaseModel):
-    operation: Literal["embedding", "generation"]
+    operation: Literal["embedding", "generation", "judge"]
     requested_model: str
     returned_model: str | None
     request_id: str | None

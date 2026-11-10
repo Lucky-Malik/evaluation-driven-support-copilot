@@ -1,0 +1,25 @@
+{
+  "cases": 30,
+  "categories": {
+    "ambiguity": 4,
+    "exact_identifier": 8,
+    "missing_evidence": 6,
+    "ordinary": 12
+  },
+  "checks": "passed",
+  "corpus_chunks": 81,
+  "dataset_id": "fastapi-support-v1",
+  "dataset_sha256": "7a53c3fb3af36e01283f0d350073c81f2d296c4c004d06928be22539da96b5ce",
+  "kind": "dataset_validation_not_a_benchmark",
+  "labelled_evidence_references": 21,
+  "model_calls": 0,
+  "review_status": {
+    "agent_inspected": 30
+  },
+  "snapshot_hash": "d4f83a093dd1b2ab86e0bda39fd378393e2c1de4935c6bc59ca5f4f03b603ab4",
+  "snapshot_id": "fastapi-d4f83a093dd1b2ab",
+  "splits": {
+    "dev": 20,
+    "test": 10
+  }
+}

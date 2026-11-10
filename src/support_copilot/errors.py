@@ -5,3 +5,6 @@ class CopilotError(Exception):
         self.message = message
         self.status_code = status_code
         self.trace: dict | None = None
+        self.retrieved_passages: list[dict] = []
+        self.retrieval_completed = False
+        self.candidate_draft: dict | None = None

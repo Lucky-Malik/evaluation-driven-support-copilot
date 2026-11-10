@@ -1,7 +1,7 @@
 [project]
 name = "support-copilot"
-version = "0.2.0"
-description = "Evaluation-driven technical support copilot: baseline RAG"
+version = "0.3.0"
+description = "Evaluation-driven technical support copilot: evaluation and failure analysis"
 requires-python = ">=3.11"
 dependencies = [
     "beautifulsoup4>=4.12,<5",
