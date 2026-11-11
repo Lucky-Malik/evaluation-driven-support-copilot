@@ -1,0 +1,7 @@
+{
+  "retrieval_version": "postgres-english-or-rrf-v1",
+  "retrieval_mode": "vector",
+  "candidate_k": 20,
+  "rrf_k": 60,
+  "section_filter": null
+}

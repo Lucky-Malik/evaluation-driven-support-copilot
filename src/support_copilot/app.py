@@ -9,12 +9,14 @@ from support_copilot.contracts import Answer, Question
 from support_copilot.db import check_ready, database_url
 from support_copilot.errors import CopilotError
 from support_copilot.events import configure_logging, emit
+from support_copilot.guardrails import BodyLimitMiddleware
 from support_copilot.provider import provider_error
 from support_copilot.rag import answer_question
 from support_copilot.settings import api_key, load_settings
 
 configure_logging()
-app = FastAPI(title="Evaluation-Driven Technical Support Copilot", version="0.3.0")
+app = FastAPI(title="Evaluation-Driven Technical Support Copilot", version="0.4.0")
+app.add_middleware(BodyLimitMiddleware)
 
 
 @app.get("/health")

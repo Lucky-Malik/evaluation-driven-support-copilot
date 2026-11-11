@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "dataset_id": "fastapi-adversarial-v1",
+  "snapshot_id": "fastapi-d4f83a093dd1b2ab",
+  "snapshot_hash": "d4f83a093dd1b2ab86e0bda39fd378393e2c1de4935c6bc59ca5f4f03b603ab4",
+  "pipeline_version": "html-sections-blocks-v1-1600",
+  "relevance_unit": "chunk",
+  "files": {
+    "cases.jsonl": "08d41fe270ff6d74194f72bae64b6fc8ea26dcd748e483a0e343b9a12bf0a91d"
+  }
+}

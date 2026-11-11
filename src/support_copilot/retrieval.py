@@ -26,7 +26,8 @@ def corpus_status(url: str, settings: Settings) -> dict:
         "snapshot_hash": row[2],
         "chunks": row[0],
         "embedded_chunks": row[1],
-        "ready": row[0] > 0 and row[0] == row[1],
+        "ready": row[0] > 0 and (settings.retrieval_mode == "keyword" or row[0] == row[1]),
+        "retrieval_mode": settings.retrieval_mode,
         "embedding_model": settings.embedding_model,
         "embedding_dimensions": settings.embedding_dimensions,
     }
@@ -106,12 +107,15 @@ def retrieve(url: str, vector: list[float], settings: Settings) -> list[Passage]
                JOIN documents d ON d.id = c.document_id
                WHERE e.model = %s AND e.dimensions = %s AND d.snapshot_id = %s
                    AND e.content_sha256 = c.content_sha256
+                   AND (%s::text IS NULL OR c.section = %s)
                ORDER BY distance, c.id LIMIT %s""",
             (
                 json.dumps(vector),
                 settings.embedding_model,
                 settings.embedding_dimensions,
                 settings.snapshot_id,
+                settings.section_filter,
+                settings.section_filter,
                 settings.top_k,
             ),
         ).fetchall()
@@ -129,3 +133,79 @@ def retrieve(url: str, vector: list[float], settings: Settings) -> list[Passage]
         )
         for row in rows
     ]
+
+
+def keyword_retrieve(url: str, question: str, settings: Settings) -> list[Passage]:
+    with db.connect(url) as connection:
+        rows = connection.execute(
+            """WITH query AS (
+                   SELECT coalesce(string_agg(quote_literal(term), ' | '), '')::tsquery AS value
+                   FROM unnest(tsvector_to_array(to_tsvector('pg_catalog.english', %s))) term
+               )
+               SELECT c.id, c.document_id, d.source_url, d.title, c.section,
+                      d.snapshot_id, c.content_sha256, c.content, c.anchor,
+                      ts_rank_cd(c.search_vector, query.value) AS score
+               FROM chunks c JOIN documents d ON d.id = c.document_id CROSS JOIN query
+               WHERE d.snapshot_id = %s AND c.search_vector @@ query.value
+                   AND (%s::text IS NULL OR c.section = %s)
+               ORDER BY score DESC, c.id LIMIT %s""",
+            (
+                question,
+                settings.snapshot_id,
+                settings.section_filter,
+                settings.section_filter,
+                settings.top_k,
+            ),
+        ).fetchall()
+    return [
+        Passage(
+            chunk_id=row[0],
+            document_id=row[1],
+            source_url=row[2] + (f"#{row[8]}" if row[8] else ""),
+            title=row[3],
+            section=row[4],
+            snapshot_id=row[5],
+            content_sha256=row[6],
+            content=row[7],
+            keyword_score=row[9],
+            keyword_rank=rank,
+        )
+        for rank, row in enumerate(rows, 1)
+    ]
+
+
+def reciprocal_rank_fusion(
+    vector_hits: list[Passage], keyword_hits: list[Passage], k: int, limit: int
+) -> list[Passage]:
+    if k < 1 or limit < 1:
+        raise ValueError("RRF constant and result limit must be positive")
+    merged = {}
+    for name, hits in (("vector", vector_hits), ("keyword", keyword_hits)):
+        seen = set()
+        for rank, hit in enumerate(hits, 1):
+            if hit.chunk_id in seen:
+                continue
+            seen.add(hit.chunk_id)
+            if hit.chunk_id not in merged:
+                merged[hit.chunk_id] = hit.model_copy(update={"rrf_score": 0.0})
+            item = merged[hit.chunk_id]
+            item.rrf_score += 1 / (k + rank)
+            if name == "vector":
+                item.vector_rank = rank
+                item.cosine_distance = hit.cosine_distance
+            else:
+                item.keyword_rank = rank
+                item.keyword_score = hit.keyword_score
+    return sorted(merged.values(), key=lambda p: (-p.rrf_score, p.chunk_id))[:limit]
+
+
+def hybrid_retrieve(
+    url: str, question: str, vector: list[float], settings: Settings
+) -> list[Passage]:
+    candidates = settings.model_copy(update={"top_k": settings.candidate_k})
+    return reciprocal_rank_fusion(
+        retrieve(url, vector, candidates),
+        keyword_retrieve(url, question, candidates),
+        settings.rrf_k,
+        settings.top_k,
+    )

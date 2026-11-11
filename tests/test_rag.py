@@ -167,6 +167,31 @@ def test_empty_question_is_rejected(ask_client):
     assert state["calls"] == []
 
 
+def test_keyword_pipeline_skips_embedding(ask_client, monkeypatch, baseline_settings, passage):
+    http, state = ask_client
+    settings = baseline_settings.model_copy(update={"retrieval_mode": "keyword"})
+    monkeypatch.setattr("support_copilot.app.load_settings", lambda: settings)
+    monkeypatch.setattr("support_copilot.rag.keyword_retrieve", lambda *_: [passage])
+    response = http.post("/ask", json={"question": "RequestValidationError"})
+    assert response.status_code == 200
+    assert response.json()["trace"]["retrieval_mode"] == "keyword"
+    assert len(state["calls"]) == 1
+    assert state["calls"][0][0].endswith("/responses")
+
+
+def test_hybrid_pipeline_uses_fused_evidence(ask_client, monkeypatch, baseline_settings, passage):
+    http, state = ask_client
+    settings = baseline_settings.model_copy(update={"retrieval_mode": "hybrid"})
+    monkeypatch.setattr("support_copilot.app.load_settings", lambda: settings)
+    fused = passage.model_copy(update={"rrf_score": 0.03, "vector_rank": 1, "keyword_rank": 1})
+    monkeypatch.setattr("support_copilot.rag.hybrid_retrieve", lambda *_: [fused])
+    response = http.post("/ask", json={"question": "A supported question"})
+    assert response.status_code == 200
+    assert response.json()["retrieved_passages"][0]["rrf_score"] == 0.03
+    assert response.json()["trace"]["retrieval_mode"] == "hybrid"
+    assert len(state["calls"]) == 2
+
+
 def test_missing_key_is_explicit_without_connecting(monkeypatch):
     monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)

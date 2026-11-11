@@ -19,7 +19,17 @@ from support_copilot.snapshot import SOURCE_URLS, Manifest, Page, fingerprint
 
 @pytest.fixture
 def baseline_settings(monkeypatch):
-    for field in ("GENERATION_MODEL", "EMBEDDING_MODEL", "EMBEDDING_DIMENSIONS", "TOP_K"):
+    for field in (
+        "GENERATION_MODEL",
+        "EMBEDDING_MODEL",
+        "EMBEDDING_DIMENSIONS",
+        "TOP_K",
+        "RETRIEVAL_MODE",
+        "CANDIDATE_K",
+        "RRF_K",
+        "SNAPSHOT_ID",
+        "SECTION_FILTER",
+    ):
         monkeypatch.delenv(f"COPILOT_{field}", raising=False)
     monkeypatch.setenv("PYTHON_DOTENV_DISABLED", "1")
     return load_settings().model_copy(update={"embedding_dimensions": 3})
@@ -55,6 +65,7 @@ def provider_client():
         "fail_embedding_after": None,
         "embedding_calls": 0,
         "timeout": False,
+        "answer_override": None,
     }
 
     def handle(request):
@@ -102,7 +113,9 @@ def provider_client():
             "reason": "Scripted test decision, not an LLM assessment.",
         }
         if status == "answered":
-            draft["answer"] = "Declare item_id: int for integer validation."
+            draft["answer"] = (
+                state["answer_override"] or "Declare item_id: int for integer validation."
+            )
             draft["citation_ids"] = [state["citation_id"] or payload["evidence"][0]["chunk_id"]]
         elif status == "needs_clarification":
             draft["clarification_question"] = "Which request parameter needs validation?"

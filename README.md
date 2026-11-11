@@ -2,7 +2,7 @@
 
 A portfolio project for answering FastAPI support questions from documented evidence. Its evaluation workflow compares pipeline runs and exposes failures, quality, latency, and provider-reported usage. Dollar cost is reported as unavailable until verified pricing is configured.
 
-**Current status: Phase 3 implemented; live evaluation pending.** The vector-only baseline now has a 30-case dataset, deterministic metrics, a structured LLM judge, saved run comparison, and a user review workflow. Cases are agent-inspected, with zero user-reviewed labels. No OpenAI API key is configured, so no live benchmark or judge agreement rate is claimed.
+**Current status: Phase 4 implemented; live comparisons pending.** The copilot supports vector, PostgreSQL keyword, and RRF hybrid retrieval, metadata filters, bounded inputs, and a separate adversarial evaluation suite. The 30-case quality dataset and 12 attack/control cases are agent-inspected, with zero user-reviewed labels. Keyword retrieval has been measured locally; no API key is configured, so vector/hybrid improvement and live guardrail effectiveness are unmeasured. Vector remains the default.
 
 ## Current architecture
 
@@ -17,8 +17,8 @@ PostgreSQL: documents ──< chunks
                            │ copilot embed → OpenAI embeddings
                            ▼
                     chunk_embeddings (pgvector)
-                           ▲ cosine-distance top-k
-POST /ask → question embedding → retrieved passages → OpenAI structured answer
+                           ▲ vector / keyword / RRF hybrid retrieval
+POST /ask → input limits → retrieval + filters → OpenAI structured answer
                                                      │
                                     citation ID checks → answer + sources + trace
 
@@ -30,7 +30,7 @@ Versioned cases → eval run → same baseline + separate LLM judge
                      compare runs / review judgments
 ```
 
-PostgreSQL runs in Docker Compose. Python runs locally with uv. `/health` checks the API process; `/ready` checks database/schema availability. `copilot index-status` separately checks embedding coverage. The baseline uses exact cosine search, with no keyword search, hybrid retrieval, or reranking.
+PostgreSQL runs in Docker Compose. Python runs locally with uv. `/health` checks the API process; `/ready` checks database/schema availability. `copilot index-status` reports embedding coverage and readiness for the configured mode. Vector/hybrid require complete embeddings; keyword retrieval does not. No reranker is implemented.
 
 ## Run locally
 
@@ -45,7 +45,7 @@ uv run copilot ingest --snapshot data/snapshots/fastapi-d4f83a093dd1b2ab
 uv run copilot index-status
 ```
 
-Existing Phase 1 users should run `uv sync --locked` and `uv run copilot init-db` to apply schema version 2. The migration preserves the corpus. Copy `.env.example` only on first setup; preserve an existing `.env`.
+Existing users should run `uv sync --locked` and `uv run copilot init-db` to apply schema version 3, adding a generated text-search column and GIN index. Migrations preserve corpus IDs, text, and embeddings. Copy `.env.example` only on first setup; preserve an existing `.env`.
 
 Add your `OPENAI_API_KEY` to `.env` locally. The next command makes paid embedding calls; completed batches are reused on subsequent runs:
 
@@ -69,7 +69,7 @@ uv run ruff check src tests
 uv run ruff format --check src tests
 ```
 
-Health/readiness return HTTP 200 when initialized. `/ask` requires a key and all chunks embedded; otherwise it returns an explicit 503 error. A successful request returns `answered`, `needs_clarification`, or `insufficient_evidence`, alongside retrieved passages and a trace. Interactive API docs: <http://127.0.0.1:8000/docs>. The saved snapshot contains **6 documents and 81 chunks**; re-ingestion preserves IDs and embeddings.
+Health/readiness return HTTP 200 when initialized. `/ask` requires a key and a ready corpus for its mode; otherwise it returns an explicit 503 error. A successful request returns `answered`, `needs_clarification`, or `insufficient_evidence`, alongside retrieved passages and a trace. Interactive API docs: <http://127.0.0.1:8000/docs>. The saved snapshot contains **6 documents and 81 chunks**; re-ingestion preserves IDs and embeddings.
 
 Run all tests against the local database using isolated temporary schemas:
 
@@ -86,7 +86,7 @@ Optional: capture a new six-page snapshot with `uv run copilot fetch-docs`. It p
 1. **Complete:** [Foundation and document ingestion](docs/phase-1/README.md).
 2. **Implemented, live checks pending:** [Baseline RAG with citations](docs/phase-2/README.md).
 3. **Implemented, live benchmark pending:** [Evaluation harness and failure analysis](docs/phase-3/README.md).
-4. Planned: keyword/hybrid retrieval and guardrail experiments.
+4. **Implemented, live comparisons pending:** [Retrieval improvements and guardrail experiments](docs/phase-4/README.md).
 5. Planned: dashboard, regression checks, and portfolio delivery.
 
 Only implemented phases have guides. The provider is OpenAI using its official SDK. Defaults are `text-embedding-3-small` (1,536 dimensions) and `gpt-5.6-terra`, verified against official documentation on 9 November 2026. Models and top-k can be overridden in `.env`; the packaged `baseline-v1.json` and `answer-v1.txt` preserve the baseline defaults and prompt. See Phase 2 for citations and configuration details.
@@ -111,10 +111,19 @@ Use a fresh output directory for each run. Artifacts retain dataset/corpus/confi
 
 The [Phase 3 guide](docs/phase-3/README.md) explains formulas, comparison commands, review recording, and missing-score coverage. The [dataset guide](data/evaluation/fastapi-support-v1/README.md) explains label provenance and expansion toward 100 reviewed cases. Use development cases for choosing settings and reserve the test split for evaluation after those choices.
 
+Measure keyword retrieval without model calls, or validate the separate adversarial cases:
+
+```bash
+COPILOT_RETRIEVAL_MODE=keyword uv run copilot eval keyword --report runs/keyword-dev.json
+uv run copilot eval adversarial-validate
+```
+
+Use `COPILOT_RETRIEVAL_MODE=hybrid` to opt into RRF retrieval. Snapshot and exact section filters are configurable through `COPILOT_SNAPSHOT_ID` and `COPILOT_SECTION_FILTER`. The [Phase 4 guide](docs/phase-4/README.md) provides matched vector/hybrid run commands, controlled document-injection experiments, and the development-to-held-out selection workflow.
+
 ## Evidence and limitations
 
-Verified on 10 November 2026: **94 tests passed; 3 paid live tests skipped**. Ruff and package-build checks passed. The [offline validation report](docs/phase-3/offline-validation.json) verifies 30 cases and 21 evidence references against 81 saved chunks, with zero model calls. The actual database has 81 chunks and zero embeddings. Provider-dependent tests use the real SDK with scripted HTTP responses; they do not establish semantic retrieval or answer quality. The existing Starlette TestClient deprecation warning remains documented.
+Verified on 11 November 2026: **116 tests passed; 3 paid live tests skipped**. Ruff and package-build checks passed. The actual database has 81 chunks and zero embeddings. The [keyword results](docs/phase-4/results.md) report Recall@5 **0.6923** and MRR@5 **0.5962** over 13 answerable development cases, with no model calls. These measure keyword retrieval only. Scripted provider tests do not establish live answer quality or safety. The existing Starlette TestClient deprecation warning remains documented.
 
-This is a local public-document prototype. The corpus is a six-page website snapshot, not a named FastAPI release or complete documentation set. Chunk sizes are a soft character target, not a token limit. Citation membership is checked deterministically; semantic support is assessed by a fallible judge. Distance is not confidence. Labels may miss alternative supporting chunks; the small held-out split is visible to the author. No claim about live LLM quality is possible yet, and the dashboard remains a later phase.
+This is a local public-document prototype. The corpus is a six-page website snapshot, not a named FastAPI release or complete documentation set. Byte/character limits bound requests but do not guarantee safety or token counts. Citation membership is deterministic; semantic support uses a fallible judge. A structurally valid answer can still follow an injection. Labels may miss alternative supporting chunks; the small held-out split is visible to the author. Hosted-model cost estimates remain unavailable. The dashboard is planned for Phase 5.
 
 Source URLs and hashes are in the [snapshot manifest](data/snapshots/fastapi-d4f83a093dd1b2ab/manifest.json). FastAPI documentation is attributed to Sebastián Ramírez and distributed with its downloaded [MIT license](data/snapshots/fastapi-d4f83a093dd1b2ab/LICENSE). The saved source remains separate from the project's implementation.

@@ -8,7 +8,9 @@ from openai import OpenAI, OpenAIError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from support_copilot.contracts import Answer, Passage, ProviderCall, Usage
+from support_copilot.errors import CopilotError
 from support_copilot.evaluation.dataset import Case
+from support_copilot.guardrails import bounded_payload
 from support_copilot.provider import provider_error
 
 
@@ -71,7 +73,7 @@ def judge_answer(
         response = client.responses.create(
             model=settings.model,
             instructions=judge_prompt(settings),
-            input=json.dumps(payload, ensure_ascii=False),
+            input=bounded_payload(payload, limit=128000),
             store=False,
             reasoning={"effort": settings.reasoning_effort},
             max_output_tokens=settings.max_output_tokens,
@@ -116,6 +118,8 @@ def judge_answer(
                 if (getattr(verdict, name).score is not None) != required:
                     raise ValueError("Judge returned an invalid applicability decision")
             result.update(status="completed", verdict=verdict.model_dump())
+    except CopilotError as error:
+        result["error"] = "judge_" + error.code
     except OpenAIError as error:
         result["error"] = provider_error(error).code
     except (ValidationError, ValueError):

@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 class Question(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
-    question: str = Field(min_length=1)
+    question: str = Field(min_length=1, max_length=4000)
 
 
 class AnswerDraft(BaseModel):
@@ -45,7 +45,11 @@ class Passage(BaseModel):
     snapshot_id: str
     content_sha256: str
     content: str
-    cosine_distance: float
+    cosine_distance: float | None = None
+    keyword_score: float | None = None
+    rrf_score: float | None = None
+    vector_rank: int | None = None
+    keyword_rank: int | None = None
 
 
 class Citation(BaseModel):
@@ -95,6 +99,10 @@ class Trace(BaseModel):
     max_output_tokens: int
     timings_ms: dict[str, float]
     provider_calls: list[ProviderCall]
+    retrieval_mode: Literal["vector", "keyword", "hybrid"] = "vector"
+    candidate_k: int = 20
+    rrf_k: int = 60
+    section_filter: str | None = None
     cost: Cost = Field(default_factory=Cost)
 
 

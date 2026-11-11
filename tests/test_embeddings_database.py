@@ -32,7 +32,7 @@ def test_phase1_upgrade_preserves_existing_corpus(isolated_db, snapshot):
     db.initialize(isolated_db)
     db.check_ready(isolated_db)
     with db.connect(isolated_db) as connection:
-        assert connection.execute("SELECT version FROM schema_version").fetchone() == (2,)
+        assert connection.execute("SELECT version FROM schema_version").fetchone() == (3,)
         assert (
             connection.execute("SELECT id, content_sha256 FROM chunks ORDER BY id").fetchall()
             == before

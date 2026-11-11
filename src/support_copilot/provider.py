@@ -1,4 +1,3 @@
-import json
 import math
 from dataclasses import dataclass
 
@@ -13,6 +12,7 @@ from openai import (
 
 from support_copilot.contracts import AnswerDraft, Passage, ProviderCall, Usage
 from support_copilot.errors import CopilotError
+from support_copilot.guardrails import bounded_payload
 from support_copilot.settings import Settings
 
 
@@ -87,7 +87,7 @@ def generate(
     response = client.responses.parse(
         model=settings.generation_model,
         instructions=prompt,
-        input=json.dumps({"question": question, "evidence": evidence}, ensure_ascii=False),
+        input=bounded_payload({"question": question, "evidence": evidence}),
         text_format=AnswerDraft,
         reasoning={"effort": settings.reasoning_effort},
         max_output_tokens=settings.max_output_tokens,

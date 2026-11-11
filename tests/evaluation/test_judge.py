@@ -84,3 +84,17 @@ def test_incorrect_null_applicability_rejected(
     }
     result = judge_answer(sdk, case, make_answer(case), [], judge_settings)
     assert result["error"] == "invalid_judge_output"
+
+
+def test_oversized_judge_context_is_reported_without_a_provider_call(
+    dataset_bundle, make_answer, judge_client, judge_settings
+):
+    case = dataset_bundle[1][0]
+    answer = make_answer(case).model_copy(deep=True)
+    answer.retrieved_passages[0].content = "界" * 50000
+    sdk, state = judge_client
+    result = judge_answer(sdk, case, answer, [], judge_settings)
+    assert result["status"] == "failed"
+    assert result["error"] == "judge_context_too_large"
+    assert result["provider_call"] is None
+    assert state["requests"] == []

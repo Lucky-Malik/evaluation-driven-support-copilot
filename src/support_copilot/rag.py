@@ -4,12 +4,13 @@ import psycopg
 from openai import OpenAI, OpenAIError
 from pydantic import ValidationError
 
-from support_copilot.contracts import Answer, AnswerDraft, Citation, Trace
+from support_copilot.contracts import Answer, AnswerDraft, Question, Trace
 from support_copilot.corpus import sha256
 from support_copilot.errors import CopilotError
 from support_copilot.events import emit
+from support_copilot.guardrails import validated_citations
 from support_copilot.provider import embed, generate, provider_error
-from support_copilot.retrieval import corpus_status, retrieve
+from support_copilot.retrieval import corpus_status, hybrid_retrieve, keyword_retrieve, retrieve
 from support_copilot.settings import Settings, config_hash, load_prompt
 
 
@@ -20,6 +21,12 @@ def answer_question(
     client: OpenAI,
     request_id: str,
 ) -> Answer:
+    try:
+        question = Question(question=question).question
+    except ValidationError:
+        raise CopilotError(
+            "invalid_question", "Use a question of 1 to 4000 characters.", 422
+        ) from None
     started = perf_counter()
     stage_started = started
     stage = "corpus_check"
@@ -43,6 +50,10 @@ def answer_question(
         max_output_tokens=settings.max_output_tokens,
         timings_ms={},
         provider_calls=[],
+        retrieval_mode=settings.retrieval_mode,
+        candidate_k=settings.candidate_k,
+        rrf_k=settings.rrf_k,
+        section_filter=settings.section_filter,
     )
     try:
         status = corpus_status(url, settings)
@@ -52,12 +63,19 @@ def answer_question(
                 "corpus_not_ready", "Ingest and embed every chunk of the configured snapshot first."
             )
         trace.timings_ms[stage] = round((perf_counter() - stage_started) * 1000, 3)
-        stage, stage_started = "query_embedding", perf_counter()
-        embedding = embed(client, [question], settings)
-        trace.provider_calls.append(embedding.call)
-        trace.timings_ms[stage] = round((perf_counter() - stage_started) * 1000, 3)
+        embedding = None
+        if settings.retrieval_mode != "keyword":
+            stage, stage_started = "query_embedding", perf_counter()
+            embedding = embed(client, [question], settings)
+            trace.provider_calls.append(embedding.call)
+            trace.timings_ms[stage] = round((perf_counter() - stage_started) * 1000, 3)
         stage, stage_started = "retrieval", perf_counter()
-        passages = retrieve(url, embedding.vectors[0], settings)
+        if settings.retrieval_mode == "keyword":
+            passages = keyword_retrieve(url, question, settings)
+        elif settings.retrieval_mode == "hybrid":
+            passages = hybrid_retrieve(url, question, embedding.vectors[0], settings)
+        else:
+            passages = retrieve(url, embedding.vectors[0], settings)
         retrieval_completed = True
         trace.timings_ms[stage] = round((perf_counter() - stage_started) * 1000, 3)
         stage, stage_started = "generation", perf_counter()
@@ -85,20 +103,7 @@ def answer_question(
             raise CopilotError(
                 "invalid_provider_output", "Provider returned no structured answer.", 502
             )
-        by_id = {passage.chunk_id: passage for passage in passages}
-        if any(chunk_id not in by_id for chunk_id in draft.citation_ids):
-            raise CopilotError(
-                "invalid_citation", "Provider cited evidence that was not retrieved.", 502
-            )
-        citations = [
-            Citation(
-                chunk_id=item.chunk_id,
-                source_url=item.source_url,
-                title=item.title,
-                section=item.section,
-            )
-            for item in (by_id[key] for key in dict.fromkeys(draft.citation_ids))
-        ]
+        citations = validated_citations(draft, passages)
         trace.timings_ms[stage] = round((perf_counter() - stage_started) * 1000, 3)
         trace.timings_ms["total"] = round((perf_counter() - started) * 1000, 3)
         emit(

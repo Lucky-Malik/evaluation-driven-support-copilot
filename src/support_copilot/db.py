@@ -42,9 +42,14 @@ def initialize(url: str) -> None:
                 files("support_copilot").joinpath("migrations/002_embeddings.sql").read_text()
             )
             connection.execute(migration)
-        elif version != [(2,)]:
+            version = [(2,)]
+        if version == [(2,)]:
+            connection.execute(
+                files("support_copilot").joinpath("migrations/003_keyword_search.sql").read_text()
+            )
+        elif version != [(3,)]:
             raise ValueError("Unsupported database schema version")
-    emit("schema_initialized", version=2)
+    emit("schema_initialized", version=3)
 
 
 def check_ready(url: str) -> None:
@@ -54,9 +59,11 @@ def check_ready(url: str) -> None:
             "SELECT 1 FROM pg_extension WHERE extname = 'vector'"
         ).fetchone()
         connection.execute("SELECT id, snapshot_id, pipeline_version FROM documents LIMIT 0")
-        connection.execute("SELECT id, document_id, content_sha256 FROM chunks LIMIT 0")
+        connection.execute(
+            "SELECT id, document_id, content_sha256, search_vector FROM chunks LIMIT 0"
+        )
         connection.execute("SELECT chunk_id, model, dimensions FROM chunk_embeddings LIMIT 0")
-        if version != (2,) or extension != (1,):
+        if version != (3,) or extension != (1,):
             raise ValueError("Database schema or vector extension is not initialized")
 
 
