@@ -33,7 +33,10 @@ def main() -> None:
     configure_logging()
     try:
         if args.command == "eval":
-            print(json.dumps(evaluate_command(args), sort_keys=True))
+            result = evaluate_command(args)
+            print(json.dumps(result, sort_keys=True))
+            if args.evaluation_command == "check" and not result["passed"]:
+                raise SystemExit(1)
         elif args.command == "fetch-docs":
             print(fetch_snapshot(args.output))
         elif args.command == "init-db":

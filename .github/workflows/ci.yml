@@ -1,0 +1,41 @@
+name: CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.2-pg17
+        env:
+          POSTGRES_USER: copilot
+          POSTGRES_PASSWORD: ci-only
+          POSTGRES_DB: copilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U copilot -d copilot"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://copilot:ci-only@127.0.0.1:5432/copilot
+      PYTHON_DOTENV_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.13.7"
+          enable-cache: true
+      - run: uv sync --locked --python 3.12
+      - run: uv run ruff check src tests
+      - run: uv run ruff format --check src tests
+      - run: uv run pytest -m 'not live' -q
+      - run: uv run copilot eval validate
+      - run: uv run copilot eval adversarial-validate
+      - run: uv build
+      - name: Build deployment image
+        run: docker build -t support-copilot:ci .
+      - name: Smoke test installed image
+        run: |
+          docker run --rm support-copilot:ci copilot eval validate
+          docker run --rm support-copilot:ci copilot-ui --help > /dev/null

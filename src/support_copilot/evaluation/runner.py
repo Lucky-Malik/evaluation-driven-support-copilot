@@ -216,6 +216,7 @@ def compare_runs(left: Path, right: Path) -> dict:
         "split",
         "case_ids",
         "metrics_version",
+        "k",
         "judge_config_sha256",
         "judge_prompt_sha256",
     ):

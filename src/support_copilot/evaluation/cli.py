@@ -9,6 +9,7 @@ from support_copilot.evaluation.artifacts import write_json
 from support_copilot.evaluation.dataset import validation_report
 from support_copilot.evaluation.judge import load_judge_settings
 from support_copilot.evaluation.keyword import keyword_evaluation
+from support_copilot.evaluation.regression import check_regression
 from support_copilot.evaluation.review import prepare_review, record_review
 from support_copilot.evaluation.runner import compare_runs, run_evaluation
 from support_copilot.settings import api_key, load_settings
@@ -45,6 +46,11 @@ def add_evaluation_parser(commands: argparse._SubParsersAction) -> None:
     compare = actions.add_parser("compare")
     compare.add_argument("left", type=Path)
     compare.add_argument("right", type=Path)
+    regression = actions.add_parser("check", help="Gate a candidate against a matched saved run")
+    regression.add_argument("baseline", type=Path)
+    regression.add_argument("candidate", type=Path)
+    regression.add_argument("--max-drop", type=float, default=0.02)
+    regression.add_argument("--max-latency-ratio", type=float)
     sample = actions.add_parser("review-sample")
     sample.add_argument("--run", type=Path, required=True)
     sample.add_argument("--output", type=Path, required=True)
@@ -67,6 +73,10 @@ def evaluate_command(args: argparse.Namespace) -> dict:
         return report
     if args.evaluation_command == "compare":
         return compare_runs(args.left, args.right)
+    if args.evaluation_command == "check":
+        return check_regression(
+            args.baseline, args.candidate, args.max_drop, args.max_latency_ratio
+        )
     if args.evaluation_command == "review-sample":
         return prepare_review(args.run, args.output, args.count, args.seed)
     if args.evaluation_command == "review-record":

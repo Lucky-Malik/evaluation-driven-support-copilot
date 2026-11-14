@@ -99,6 +99,9 @@ def test_free_keyword_report_uses_only_dev_cases(isolated_db, keyword_corpus, tm
     assert result["model_calls"] == 0
     assert result["overall"]["cases"] == 20
     assert result["overall"]["metrics"]["recall_at_k"]["n"] == 13
+    # Phase 4 measured development baseline: keep this free CI gate reproducible.
+    assert result["overall"]["metrics"]["recall_at_k"]["value"] >= 0.69
+    assert result["overall"]["metrics"]["mrr_at_k"]["value"] >= 0.59
     with pytest.raises(ValueError, match="new report"):
         keyword_evaluation(
             ROOT / "data/evaluation/fastapi-support-v1",

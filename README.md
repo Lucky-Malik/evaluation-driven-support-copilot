@@ -2,7 +2,7 @@
 
 A portfolio project for answering FastAPI support questions from documented evidence. Its evaluation workflow compares pipeline runs and exposes failures, quality, latency, and provider-reported usage. Dollar cost is reported as unavailable until verified pricing is configured.
 
-**Current status: Phase 4 implemented; live comparisons pending.** The copilot supports vector, PostgreSQL keyword, and RRF hybrid retrieval, metadata filters, bounded inputs, and a separate adversarial evaluation suite. The 30-case quality dataset and 12 attack/control cases are agent-inspected, with zero user-reviewed labels. Keyword retrieval has been measured locally; no API key is configured, so vector/hybrid improvement and live guardrail effectiveness are unmeasured. Vector remains the default.
+**Current status: Phase 5 implemented; live comparisons pending.** The copilot includes a Streamlit question interface and evaluation dashboard, saved-run regression gates, GitHub Actions, and container packaging. It supports vector, PostgreSQL keyword, and RRF hybrid retrieval, metadata filters, bounded inputs, and adversarial evaluation. The 30-case quality dataset and 12 attack/control cases are agent-inspected, with zero user-reviewed labels. Keyword retrieval has been measured locally; live vector/hybrid improvement and guardrail effectiveness remain unmeasured. Vector remains the default.
 
 ## Current architecture
 
@@ -18,7 +18,7 @@ PostgreSQL: documents ──< chunks
                            ▼
                     chunk_embeddings (pgvector)
                            ▲ vector / keyword / RRF hybrid retrieval
-POST /ask → input limits → retrieval + filters → OpenAI structured answer
+Streamlit Ask → POST /ask → input limits → retrieval + filters → OpenAI structured answer
                                                      │
                                     citation ID checks → answer + sources + trace
 
@@ -27,10 +27,10 @@ Versioned cases → eval run → same baseline + separate LLM judge
                               ▼
                   JSONL case records + metric summaries
                               │
-                     compare runs / review judgments
+            Streamlit dashboard / compare / regression gate / review
 ```
 
-PostgreSQL runs in Docker Compose. Python runs locally with uv. `/health` checks the API process; `/ready` checks database/schema availability. `copilot index-status` reports embedding coverage and readiness for the configured mode. Vector/hybrid require complete embeddings; keyword retrieval does not. No reranker is implemented.
+PostgreSQL runs in Docker Compose. Python runs locally with uv or in the optional application containers. `/health` checks the API process; `/ready` checks database/schema availability. `copilot index-status` reports embedding coverage and readiness for the configured mode. Vector/hybrid require complete embeddings; keyword retrieval does not. No reranker is implemented.
 
 ## Run locally
 
@@ -87,11 +87,19 @@ Optional: capture a new six-page snapshot with `uv run copilot fetch-docs`. It p
 2. **Implemented, live checks pending:** [Baseline RAG with citations](docs/phase-2/README.md).
 3. **Implemented, live benchmark pending:** [Evaluation harness and failure analysis](docs/phase-3/README.md).
 4. **Implemented, live comparisons pending:** [Retrieval improvements and guardrail experiments](docs/phase-4/README.md).
-5. Planned: dashboard, regression checks, and portfolio delivery.
+5. **Implemented:** [Interface, regression checks, and delivery](docs/phase-5/README.md), with a [portfolio report](docs/phase-5/results.md).
 
 Only implemented phases have guides. The provider is OpenAI using its official SDK. Defaults are `text-embedding-3-small` (1,536 dimensions) and `gpt-5.6-terra`, verified against official documentation on 9 November 2026. Models and top-k can be overridden in `.env`; the packaged `baseline-v1.json` and `answer-v1.txt` preserve the baseline defaults and prompt. See Phase 2 for citations and configuration details.
 
 ## Evaluate and inspect
+
+Start the question interface in another terminal after launching the API:
+
+```bash
+uv run copilot-ui
+```
+
+Open <http://127.0.0.1:8501>. The **Evaluation** workspace browses completed runs under `runs/` without API, database, or model calls. It shows metric coverage, failures, latency, token usage, case details, and matched comparisons. The [Phase 5 guide](docs/phase-5/README.md) covers configuration, CI, and container setup.
 
 The included dataset has 20 development and 10 held-out cases covering ordinary questions, exact identifiers, ambiguity, and missing evidence. Validate it without a key or database:
 
@@ -109,6 +117,12 @@ uv run copilot eval review-sample --run runs/baseline-dev --output runs/review.j
 
 Use a fresh output directory for each run. Artifacts retain dataset/corpus/config/prompt/model identities, evidence, answers, errors, timings, tokens, and scores. Metrics include chunk Recall@K, MRR, outcome accuracy, citation validity, and judge-assessed correctness, faithfulness, citation support, and response appropriateness. Judge failures and usage remain separate from application quality and usage.
 
+Gate a candidate against a matched saved baseline (no model calls; exits 1 on regression):
+
+```bash
+uv run copilot eval check runs/baseline-dev runs/candidate-dev --max-drop 0.02
+```
+
 The [Phase 3 guide](docs/phase-3/README.md) explains formulas, comparison commands, review recording, and missing-score coverage. The [dataset guide](data/evaluation/fastapi-support-v1/README.md) explains label provenance and expansion toward 100 reviewed cases. Use development cases for choosing settings and reserve the test split for evaluation after those choices.
 
 Measure keyword retrieval without model calls, or validate the separate adversarial cases:
@@ -122,8 +136,8 @@ Use `COPILOT_RETRIEVAL_MODE=hybrid` to opt into RRF retrieval. Snapshot and exac
 
 ## Evidence and limitations
 
-Verified on 11 November 2026: **116 tests passed; 3 paid live tests skipped**. Ruff and package-build checks passed. The actual database has 81 chunks and zero embeddings. The [keyword results](docs/phase-4/results.md) report Recall@5 **0.6923** and MRR@5 **0.5962** over 13 answerable development cases, with no model calls. These measure keyword retrieval only. Scripted provider tests do not establish live answer quality or safety. The existing Starlette TestClient deprecation warning remains documented.
+Verified on 14 November 2026: **143 tests passed; 3 paid live tests skipped**, including PostgreSQL integration tests and the keyword development regression. Ruff and package-build checks passed. The [keyword results](docs/phase-4/results.md) report Recall@5 **0.6923** and MRR@5 **0.5962** over 13 answerable development cases, with no model calls. These measure keyword retrieval only. Scripted provider tests do not establish live answer quality or safety. The existing Starlette TestClient deprecation warning remains documented. See the [Phase 5 verification record](docs/phase-5/results.md) for delivery checks.
 
-This is a local public-document prototype. The corpus is a six-page website snapshot, not a named FastAPI release or complete documentation set. Byte/character limits bound requests but do not guarantee safety or token counts. Citation membership is deterministic; semantic support uses a fallible judge. A structurally valid answer can still follow an injection. Labels may miss alternative supporting chunks; the small held-out split is visible to the author. Hosted-model cost estimates remain unavailable. The dashboard is planned for Phase 5.
+This is a local public-document prototype. The corpus is a six-page website snapshot, not a named FastAPI release or complete documentation set. Byte/character limits bound requests but do not guarantee safety or token counts. Citation membership is deterministic; semantic support uses a fallible judge. A structurally valid answer can still follow an injection. Labels may miss alternative supporting chunks; the small held-out split is visible to the author. Hosted-model cost estimates remain unavailable. Container packaging does not add authentication or constitute a public production deployment.
 
 Source URLs and hashes are in the [snapshot manifest](data/snapshots/fastapi-d4f83a093dd1b2ab/manifest.json). FastAPI documentation is attributed to Sebastián Ramírez and distributed with its downloaded [MIT license](data/snapshots/fastapi-d4f83a093dd1b2ab/LICENSE). The saved source remains separate from the project's implementation.
